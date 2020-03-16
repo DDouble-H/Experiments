@@ -96,6 +96,7 @@ class ClassificationReportCallback(Callback):
 
         return
 
+
 def get_data(path, file):
     print(path)
     print(file)
@@ -144,6 +145,7 @@ config.log_device_placement = True  # to log device placement (on which device t
 sess = tf.compat.v1.Session(config=config)
 tf.compat.v1.keras.backend.set_session(sess)
 
+
 def model1(main_input, time):
     # 3d cnn
     pool_size1 = (1, 4, 2)
@@ -180,9 +182,10 @@ def model1(main_input, time):
 
     return main_output
 
+
 def model2(main_input, time):
     # 3d cnn + attention
-    # shape : (data, time, ch1, ch2, freq)
+    #shape : (data, time, ch1, ch2, freq)
     pool_size1 = (1, 4, 2)
     pool_size2 = (1, 2, 4)
 
@@ -204,23 +207,21 @@ def model2(main_input, time):
     activation = Activation(activation_name)(batch_norm)
 
     bidir_rnn = Reshape((time, -1))(activation)
-    bidir_rnn1 = Bidirectional(LSTM(100, dropout=0.5, recurrent_dropout=0.5, return_sequences=True))(bidir_rnn)
-    bidir_rnn2 = Bidirectional(LSTM(100, dropout=0.5, recurrent_dropout=0.5, return_sequences=True))(bidir_rnn1)
-
-    # bidir_rnn1 = Bidirectional(GRU(100, dropout=0.5, recurrent_dropout=0.5, return_sequences=True))(bidir_rnn)
-    # bidir_rnn2 = Bidirectional(GRU(100, dropout=0.5, recurrent_dropout=0.5, return_sequences=True))(bidir_rnn1)
+    bidir_rnn1 = Bidirectional(LSTM(400, dropout=0.5, recurrent_dropout=0.5, return_sequences=True))(bidir_rnn)
+    bidir_rnn2 = Bidirectional(LSTM(400, dropout=0.5, recurrent_dropout=0.5, return_sequences=True))(bidir_rnn1)
 
     permute = Permute((2, 1))(bidir_rnn2)
-    dense_1 = Dense(main_input, activation='softmax')(permute)
-    prob = Permute((2, 1), name='attention_vec')(dense_1)
+    dense_1 = Dense(time, activation='softmax')(permute)
+    prob = Permute((2,1), name='attention_vec')(dense_1)
+    prob = Reshape((-1, 31, 4, 5, 40))(prob)
     attention_mul = multiply([main_input, prob])
     attention_mul = Flatten()(attention_mul)
-    flat = Flatten()(attention_mul)
-    drop = Dropout(0.5)(flat)
+    drop = Dropout(0.5)(attention_mul)
     dense_2 = Dense(200)(drop)
     main_output = Dense(2, activation='softmax')(dense_2)
 
     return main_output
+
 
 def train(patient, path, train_files, test_files):
     X_train, Y_train = get_data(path, train_files[0])
@@ -250,7 +251,7 @@ def train(patient, path, train_files, test_files):
 
     CR = ClassificationReportCallback(validation_data=(X_test, Y_test), info=information)
 
-    histroy = model.fit(X_train, Y_train, batch_size=8, epochs=100, validation_split=0.2, verbose=1)
+    histroy = model.fit(X_train, Y_train, batch_size=8, epochs=100, validation_split=0.2, verbose=1, callbacks=[CR])
 
     del model
     K.clear_session()
